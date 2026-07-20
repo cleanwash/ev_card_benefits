@@ -21,6 +21,8 @@ SEARCH_URL = "https://api.card-gorilla.com:8080/v1/cards/search/fast"
 DETAIL_URL = "https://api.card-gorilla.com:8080/v1/cards/{idx}"
 KEYWORD = "전기차"
 CHARGE_PATTERN = re.compile("충전소|충전요금|전기차\\s*충전")
+RATE_PATTERN = re.compile(r"\d+(?:\.\d+)?%")
+BENEFIT_TYPES = ["캐시백", "청구할인", "결제일할인", "포인트 적립", "적립", "할인"]
 KST = timezone(timedelta(hours=9))
 
 
@@ -45,6 +47,12 @@ def fetch_card_detail(idx: int) -> dict:
     return resp.json()
 
 
+def parse_benefit_summary(comment: str) -> dict:
+    rates = RATE_PATTERN.findall(comment)
+    benefit_type = next((t for t in BENEFIT_TYPES if t in comment), None)
+    return {"rates": rates, "type": benefit_type}
+
+
 def extract_charge_benefits(detail: dict) -> list[dict]:
     found = []
     for kb in detail.get("key_benefit") or []:
@@ -59,6 +67,7 @@ def extract_charge_benefits(detail: dict) -> list[dict]:
                     "title": title,
                     "comment": comment,
                     "detail": info_text,
+                    **parse_benefit_summary(comment),
                 }
             )
     return found
@@ -202,12 +211,12 @@ def main() -> None:
     curr = build_snapshot()
     diff = diff_snapshots(prev, curr)
 
-    LATEST_PATH.write_text(json.dumps(curr, ensure_ascii=False, indent=2))
+    snapshot_json = json.dumps(curr, ensure_ascii=False, indent=2)
+    LATEST_PATH.write_text(snapshot_json)
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    (HISTORY_DIR / f"{today}.json").write_text(
-        json.dumps(curr, ensure_ascii=False, indent=2)
-    )
+    (HISTORY_DIR / f"{today}.json").write_text(snapshot_json)
     (DOCS_DIR / "index.html").write_text(render_html(curr, diff))
+    (DOCS_DIR / "latest.json").write_text(snapshot_json)
 
     print(
         f"cards={curr['total_searched']} "
