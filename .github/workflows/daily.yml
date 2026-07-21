@@ -1,8 +1,8 @@
-name: Daily EV card benefit check
+name: Monthly EV card benefit check
 
 on:
   schedule:
-    - cron: "0 0 * * *" # 매일 09:00 KST
+    - cron: "0 0 1 * *" # 매월 1일 09:00 KST
   workflow_dispatch: {}
 
 permissions:
@@ -21,6 +21,10 @@ jobs:
       - run: pip install -r requirements.txt
 
       - run: python scripts/fetch_cards.py
+
+      - run: python scripts/classify_benefits.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Commit changes
         run: |
